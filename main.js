@@ -2,7 +2,7 @@
 const config = {
     type: Phaser.AUTO,
     width: 600,
-    height: 600,
+    height: 900,
     backgroundColor: '#3498db', // Set to a light blue color
     scene: {
         preload,
@@ -76,16 +76,66 @@ const colors = [
     0x88aa06
 ];
 
-
-
-const qVector = [];
-
-class QLine {
-    constructor(uint32, intVal, floatVal) {
-        this.uint32 = uint32 >>> 0; // Ensure uint32 is treated as unsigned
-        this.intVal = intVal;       // Store an integer
-        this.floatVal = floatVal;   // Store a floating-point value
+class Particle{
+    constructor(x, y, dirX, dirY, speed) {
+        this.x = x;
+        this.y = y;
+        this.dirX = dirX;
+        this.dirY = dirY;
+        this.speed = speed;
+        this.lifeTime = 1.0;
+        this.size = 0.05;
+        this.growth = 1.0;
+        this.imageRef = null;        
     }
+    Destroy()
+    {
+        this.imageRef.destroy();
+        this.imageRef = null;
+    }
+}
+
+function GetRandomminusplus()
+{
+    let randomNumber = Math.random();
+    return (randomNumber*2) -1;
+}
+
+class ExplosionMgr {
+    constructor(scene, poolSize) {
+        this.scene = scene;
+        this.scene.poolSize = poolSize;        
+    }
+
+    thepool =[];
+
+    CreateExplosion(x, y){
+        for (let i=0; i<10; i++)
+        {            
+            let newParticle = new Particle(x,y, GetRandomminusplus(), GetRandomminusplus(), 200*GetRandomminusplus());
+            newParticle.imageRef = this.scene.add.image(x, y, 'star3')
+            
+            this.thepool.push(newParticle);
+        }
+    }
+
+    Update(deltaTime)
+    {
+        this.thepool.forEach((particle, particleIndex) => {
+            particle.lifeTime -= deltaTime;
+            particle.imageRef.x += particle.dirX * particle.speed * deltaTime; //particle itself isn't moving which is fine
+            particle.imageRef.y += particle.dirY * particle.speed * deltaTime;
+            particle.size = particle.size + (particle.growth * deltaTime);
+            particle.imageRef.setScale(particle.size)
+            console.log('size: ' + particle.size);
+            if (particle.lifeTime < 0)
+            {
+                particle.Destroy();
+                this.thepool.splice(particleIndex,1);
+            }
+        });
+    }
+
 }
 
 function packBooleans(bools) {
@@ -104,15 +154,13 @@ function packBooleans(bools) {
 
 
 
-function preload() {
-    this.load.image('grid', 'assets/grid.png');
-    this.load.image('Xpic', 'assets/x.png');
-    this.load.image('Opic', 'assets/o.png');
+function preload() {    
 
     this.load.image('blue', 'assets/blue.png');
     this.load.image('pso', 'assets/pso.png');
     this.load.image('eb1', 'assets/eb1.png');
     this.load.image('lb1', 'assets/lb1.png');
+    this.load.image('star3', 'assets/star3.png');
 
    
 }
@@ -166,7 +214,7 @@ function create() {
         }
     }
 
-    background = this.add.tileSprite(300, 300, 600, 600, 'blue');
+    background = this.add.tileSprite(300, 450, 600, 900, 'blue');
     
     newPiece = this.add.image(xMouse, yMouse, 'pso');
     newPiece.setScale(0.4);
@@ -181,6 +229,8 @@ function create() {
     this.input.on('pointerup', () => {
         isMouseDown = false;
     });
+
+    explosionManager = new ExplosionMgr(this, 100);
 
     // Add text to indicate instructions or feedback
     
@@ -247,22 +297,26 @@ function update(time, delta) {
         piece.y += 3;
         piece.spriteRef.y +=3;
         //clean up at end
-        if (piece.y > 580) {piece.spriteRef.destroy(); enemies.splice(index, 1);}
+        if (piece.y > 850) {piece.spriteRef.destroy(); enemies.splice(index, 1);}
     });
     
     //collision
     bullets.forEach((bullet, bulletIndex) => {
         enemies.forEach((enemy, enemyIndex) =>{
             let distance = Phaser.Math.Distance.Between(bullet.x, bullet.y, enemy.x, enemy.y);
-            console.log(distance);
-            if (distance < 20)
+            //console.log(distance);
+            if (distance < 20) //hit
             {
+                explosionManager.CreateExplosion(enemy.x, enemy.y);
                 enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
-                bullet.destroy(); bullets.splice(bulletIndex, 1);  
+                bullet.destroy(); bullets.splice(bulletIndex, 1);
+                
             }
         }) 
     });
 
+    //Updates
+    explosionManager.Update(deltaTime);
 
     //console.log('this many bullets: ' + bullets.length)
     //console.log('this many enemies: ' + enemies.length)
