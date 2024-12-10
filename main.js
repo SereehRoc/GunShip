@@ -64,6 +64,8 @@ let shipMouseOffset = -30;
 let gunCoolDown = 0.1;
 let gunCoolDownTimer = 0.0;
 
+let score =0;
+
 const colors = [
     0xec7d45,
     0x887a8b,
@@ -77,13 +79,14 @@ const colors = [
 ];
 
 class Particle{
-    constructor(x, y, dirX, dirY, speed) {
+    constructor(x, y, dirX, dirY, speed, lifeTime) {
         this.x = x;
         this.y = y;
         this.dirX = dirX;
         this.dirY = dirY;
         this.speed = speed;
-        this.lifeTime = 1.0;
+        this.lifeTime = lifeTime;
+        this.totalLifeTime = lifeTime;
         this.size = 0.05;
         this.growth = 1.0;
         this.imageRef = null;        
@@ -110,9 +113,9 @@ class ExplosionMgr {
     thepool =[];
 
     CreateExplosion(x, y){
-        for (let i=0; i<10; i++)
+        for (let i=0; i<20; i++)
         {            
-            let newParticle = new Particle(x,y, GetRandomminusplus(), GetRandomminusplus(), 200*GetRandomminusplus());
+            let newParticle = new Particle(x,y, GetRandomminusplus(), GetRandomminusplus(), 200*GetRandomminusplus(), (GetRandomminusplus()/2)+0.5);
             newParticle.imageRef = this.scene.add.image(x, y, 'star3')
             
             this.thepool.push(newParticle);
@@ -126,13 +129,27 @@ class ExplosionMgr {
             particle.imageRef.x += particle.dirX * particle.speed * deltaTime; //particle itself isn't moving which is fine
             particle.imageRef.y += particle.dirY * particle.speed * deltaTime;
             particle.size = particle.size + (particle.growth * deltaTime);
-            particle.imageRef.setScale(particle.size)
-            console.log('size: ' + particle.size);
-            if (particle.lifeTime < 0)
-            {
-                particle.Destroy();
-                this.thepool.splice(particleIndex,1);
-            }
+            particle.imageRef.setScale(particle.size);
+            
+            let progress = (particle.lifeTime/particle.totalLifeTime);
+            
+            particle.imageRef.setAlpha(progress);
+
+            let progressStep = 100 - (progress *100);
+            //console.log('progress: ' + progress);
+            let newColor = Phaser.Display.Color.Interpolate.ColorWithColor(
+                    { r: 255, g: 70, b: 10 }, // Start color 
+                    { r: 0, g: 0, b: 0 },     // End color 
+                    100,                          // Steps
+                    progressStep                  // Current step
+                    );
+                particle.imageRef.setTint(Phaser.Display.Color.GetColor(newColor.r, newColor.g, newColor.b));
+
+                if (particle.lifeTime < 0)
+                {
+                    particle.Destroy();
+                    this.thepool.splice(particleIndex,1);
+                }
         });
     }
 
@@ -167,52 +184,6 @@ function preload() {
 
 function create() {
 
-    
-    //mouse coords
-    
-    let coordText = this.add.text(10, 10, 'X: 0, Y: 0', {
-        fontSize: '20px',
-        fill: '#ffffff',
-    });
-
-    
-    this.input.on('pointermove', (pointer) => {
-        coordText.setText(`X: ${pointer.x}, Y: ${pointer.y}`);
-        xMouse = pointer.x; yMouse = pointer.y;
-    }); 
-   
-    
-    this.add.image(300, 300, 'grid');
-
-    
-
-    const rows = 3;
-    const cols = 3;
-    const zoneWidth = 200;
-    const zoneHeight = 200;
-    const startX = 100;
-    const startY = 100;
-    const spacing = 200;
-
-    for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-            let x = startX + col * spacing;
-            let y = startY + row * spacing;
-
-            let zone = this.add.zone(x, y, zoneWidth, zoneHeight)
-                .setInteractive()
-                .on('pointerdown', () => {
-                    
-                    //console.log(`Zone at row ${row + 1}, col ${col + 1} clicked!`);
-                    isClicked = true;
-                    playerChoice = row*3+col;
-                    //clickText.setText('Zone ' + playerChoice + ' Clicked!');
-                });               
-                
-            clickableSpaces.push(zone);        
-            
-        }
-    }
 
     background = this.add.tileSprite(300, 450, 600, 900, 'blue');
     
@@ -232,13 +203,19 @@ function create() {
 
     explosionManager = new ExplosionMgr(this, 100);
 
-    // Add text to indicate instructions or feedback
+     //mouse coords
     
+    this.topText = this.add.text(10, 10, 'X: 0, Y: 0', {
+        fontSize: '20px',
+        fill: '#ffffff',
+    });
 
-    //extraText = this.add.text(300, 350, 'extext', {
-    //    fontSize: '20px',
-    //    fill: '#ffffff',
-    //});
+    
+    this.input.on('pointermove', (pointer) => {
+        //topText.setText(`X: ${pointer.x}, Y: ${pointer.y}`);
+        xMouse = pointer.x; yMouse = pointer.y;
+    }); 
+   
 }
 
 function update(time, delta) {    
@@ -310,13 +287,15 @@ function update(time, delta) {
                 explosionManager.CreateExplosion(enemy.x, enemy.y);
                 enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
                 bullet.destroy(); bullets.splice(bulletIndex, 1);
-                
+                score+=1;
             }
         }) 
     });
 
     //Updates
     explosionManager.Update(deltaTime);
+
+    this.topText.setText('score: ' + score);
 
     //console.log('this many bullets: ' + bullets.length)
     //console.log('this many enemies: ' + enemies.length)
