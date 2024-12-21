@@ -41,20 +41,38 @@ let yMouse = 0.0;
 let gamePieces = [];
 let bullets = [];
 
-let RedEnemy = {
-    health: 10.0,
-    moveSpeed: 3,
-    sightRef: 0
+let enemySprites = [];
+
+//Waves
+let Wave0 = {
+    waveTime: 10.0,
+
 }
 
+//Enemies
+
+class EnemyTemplate {
+    constructor(health, moveSpeed, sightRef, movePattern)
+    {
+        this.health = health;
+        this.moveSpeed = moveSpeed;
+        this.sightRef = sightRef;
+        this.movePattern = movePattern;
+    }
+};
+
+redEnemy = new EnemyTemplate(10.0,3,0,0);
+blueEnemy = new EnemyTemplate(20.0,5,1,0);
+
 class Enemy {
-    constructor(x, y, health, moveSpeed, ref)
+    constructor(x, y, EnemyTemplate)
     {
         this.x = x;
         this.y = y;
-        this.health = health;
-        this.moveSpeed = moveSpeed;
-        this.sightRef = ref;
+        this.health = EnemyTemplate.health;
+        this.moveSpeed = EnemyTemplate.moveSpeed;
+        this.sightRef = EnemyTemplate.sightRef;
+        this.movePattern = EnemyTemplate.movePattern;
         this.spriteRef;
         this.active = true;    
     }
@@ -66,6 +84,7 @@ let enemyCoolDownTime = 0.3;
 let enemyCoolDownTimer = 2.0;
 let enemyMoveSpeed = 3;
 let gameTime = 0.0;
+let currentWave = 0;
 
 let background;
 
@@ -140,7 +159,7 @@ class ExplosionMgr {
             let progress = (particle.lifeTime/particle.totalLifeTime); //goes from 1 to 0
 
             particle.imageRef.x += particle.dirX * particle.speed * deltaTime; //particle itself isn't moving which is fine
-            particle.imageRef.y += particle.dirY * particle.speed * deltaTime;
+            particle.imageRef.y += particle.dirY * particle.speed * deltaTime + 100 * deltaTime;
 
             particle.size = particle.size + (particle.growth * deltaTime);            
             particle.imageRef.setScale(particle.size);
@@ -186,11 +205,16 @@ function preload() {
 
     this.load.image('blue', 'assets/blue.png');
     this.load.image('pso', 'assets/pso.png');
-    this.load.image('eb1', 'assets/eb1.png');
+    
     this.load.image('lb1', 'assets/lb1.png');
-    this.load.image('star3', 'assets/star3.png');
+    this.load.image('star3', 'assets/star3.png');    
 
-   
+    // Dynamically load enemy sprites
+    const enemyKeys = ['eb1', 'eb2', 'eb3', 'eb4']; // Example keys for enemy sprites
+    enemyKeys.forEach(key => {
+        this.load.image(key, `assets/${key}.png`);
+        enemySprites.push(key); // Dynamically add the key
+    });
 }
 
 function create() {
@@ -265,7 +289,9 @@ function update(time, delta) {
         }
 
     //waves of enemies: x many of this type, y many of that type, spread out over z time?
+    
     // amount, type
+
     
     // create enemies
     enemyCoolDownTimer -= deltaTime;
@@ -275,10 +301,11 @@ function update(time, delta) {
         let randomNumber = Math.random();
         let newX = randomNumber*500 + 50;
         //newEnemy = new Enemy(newX,10, 100.0, enemyMoveSpeed, 0);
-        newEnemy = new Enemy(newX,10, RedEnemy.health, enemyMoveSpeed, RedEnemy.ref); //careful
+        //newEnemy = new Enemy(newX,10, RedEnemy.health, enemyMoveSpeed, RedEnemy.spriteRef); //careful
+        newEnemy = new Enemy(newX,10, redEnemy);
         
         //console.log("delta" + deltaTime);
-        newEnemy.spriteRef = this.add.image(newEnemy.x, newEnemy.y, 'eb1');
+        newEnemy.spriteRef = this.add.image(newEnemy.x, newEnemy.y, enemySprites[newEnemy.sightRef]);
         newEnemy.spriteRef.setScale(0.4);
 
         enemies.push(newEnemy);
