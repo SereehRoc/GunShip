@@ -51,6 +51,23 @@ let Wave0 = {
 
 //Enemies
 
+//movepattern: go x seconds y way then go z seconds a way etc.
+class EnemyMovementPattern {
+    constructor(time0, dir0, time1, dir1, time2, dir2)
+    {
+        this.time = [time0, time1, time2];
+        this.dir = [dir0, dir1, dir2];
+        //this.time1 = time1;
+        //this.dir1 = dir1;
+        //this.time2 = time2;
+        //this.dir2 = dir2;
+    }
+}
+
+let enemyMovementPatterns = [];
+mp1 = new EnemyMovementPattern(1.0,0.0, 0.5,0.5, 1.0,0.0);
+enemyMovementPatterns.push(mp1);
+
 class EnemyTemplate {
     constructor(health, moveSpeed, sightRef, movePattern)
     {
@@ -63,18 +80,22 @@ class EnemyTemplate {
 
 redEnemy = new EnemyTemplate(10.0,3,0,0);
 blueEnemy = new EnemyTemplate(20.0,5,1,0);
+yellowEnemy = new EnemyTemplate(30.0,4,2,0);
 
 class Enemy {
-    constructor(x, y, EnemyTemplate)
+    constructor(x, y, enemyTemplate)
     {
         this.x = x;
         this.y = y;
-        this.health = EnemyTemplate.health;
-        this.moveSpeed = EnemyTemplate.moveSpeed;
-        this.sightRef = EnemyTemplate.sightRef;
-        this.movePattern = EnemyTemplate.movePattern;
+        this.health = enemyTemplate.health;
+        this.moveSpeed = enemyTemplate.moveSpeed;
+        this.sightRef = enemyTemplate.sightRef;
+        this.movePattern = enemyTemplate.movePattern;
         this.spriteRef;
-        this.active = true;    
+        this.active = true;
+        
+        this.currentMove = 0;
+        this.moveTimer = 999.0;
     }
     //update(deltaTime): movement and shoot
     //Destroy
@@ -283,7 +304,7 @@ function update(time, delta) {
     if (isMouseDown && gunCoolDownTimer < 0)
         {
             gunCoolDownTimer = gunCoolDown;
-            newPiece = this.add.image(xMouse, yMouse-40, 'lb1');
+            newPiece = this.add.image(xMouse, yMouse-60, 'lb1');
                 newPiece.setScale(0.6);
                 bullets.push(newPiece);
         }
@@ -302,21 +323,47 @@ function update(time, delta) {
         let newX = randomNumber*500 + 50;
         //newEnemy = new Enemy(newX,10, 100.0, enemyMoveSpeed, 0);
         //newEnemy = new Enemy(newX,10, RedEnemy.health, enemyMoveSpeed, RedEnemy.spriteRef); //careful
-        newEnemy = new Enemy(newX,10, redEnemy);
+        
+        randomNumber = Math.random();
+        if (randomNumber < 0.3) { newEnemy = new Enemy(newX,10, redEnemy); }
+        else if (randomNumber > 0.3 && randomNumber < 0.6) { newEnemy = new Enemy(newX,10, blueEnemy); }
+        else { newEnemy = new Enemy(newX,10, yellowEnemy);}
         
         //console.log("delta" + deltaTime);
         newEnemy.spriteRef = this.add.image(newEnemy.x, newEnemy.y, enemySprites[newEnemy.sightRef]);
         newEnemy.spriteRef.setScale(0.4);
 
         enemies.push(newEnemy);
-        console.log("enemy made");
+        //console.log("enemy made");
     }
     //move enemies
-    enemies.forEach((piece,index) => {
+    /*enemies.forEach((piece,index) => {
         // Update the coordinates directly
         
         piece.y += piece.moveSpeed;
-        piece.spriteRef.y += piece.moveSpeed;
+        piece.spriteRef.y = piece.y;
+        
+        //clean up at end
+        if (piece.y > 850) {piece.spriteRef.destroy(); enemies.splice(index, 1);}
+    });*/
+    
+    enemies.forEach((piece,index) => {
+        //console.log(piece.movePattern);
+        
+        if (piece.moveTimer > 100) { piece.moveTimer = enemyMovementPatterns[piece.movePattern].time[0];} //set inital timer
+        //countdown movement timer
+        piece.moveTimer -= deltaTime;
+        //change current movement
+        if (piece.moveTimer < 0.0 && piece.currentMove <2) { piece.currentMove += 1; piece.moveTimer = enemyMovementPatterns[piece.movePattern].time[piece.currentMove];}
+        //execute current movement
+        let xMove = enemyMovementPatterns[piece.movePattern].dir[piece.currentMove];
+        let yMove = 1- Math.abs(xMove);
+        piece.y += piece.moveSpeed * yMove ;
+        //console.log(piece.moveSpeed, yMove, deltaTime, piece.y);
+        piece.x += piece.moveSpeed * xMove;
+        
+        piece.spriteRef.x = piece.x;
+        piece.spriteRef.y = piece.y;
         //clean up at end
         if (piece.y > 850) {piece.spriteRef.destroy(); enemies.splice(index, 1);}
     });
