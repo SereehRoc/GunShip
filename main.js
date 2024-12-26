@@ -1,4 +1,6 @@
 
+
+
 const config = {
     type: Phaser.AUTO,
     width: 600,
@@ -37,8 +39,9 @@ gameStatus = 1;
 let xMouse = 0.0;
 let yMouse = 0.0;
 
+
 //stuffs
-let gamePieces = [];
+//let gamePieces = [];
 let bullets = [];
 
 let enemySprites = [];
@@ -69,18 +72,19 @@ mp1 = new EnemyMovementPattern(1.0,0.0, 0.5,0.5, 1.0,0.0);
 enemyMovementPatterns.push(mp1);
 
 class EnemyTemplate {
-    constructor(health, moveSpeed, sightRef, movePattern)
+    constructor(health, moveSpeed, sightRef, scale, movePattern)
     {
         this.health = health;
         this.moveSpeed = moveSpeed;
         this.sightRef = sightRef;
+        this.scale = scale;
         this.movePattern = movePattern;
     }
 };
 
-redEnemy = new EnemyTemplate(10.0,3,0,0);
-blueEnemy = new EnemyTemplate(20.0,5,1,0);
-yellowEnemy = new EnemyTemplate(30.0,4,2,0);
+redEnemy = new EnemyTemplate(10.0,3,0,0.5,0);
+blueEnemy = new EnemyTemplate(20.0,5,1,0.4,0);
+yellowEnemy = new EnemyTemplate(30.0,4,2,0.4,0);
 
 class Enemy {
     constructor(x, y, enemyTemplate)
@@ -90,6 +94,7 @@ class Enemy {
         this.health = enemyTemplate.health;
         this.moveSpeed = enemyTemplate.moveSpeed;
         this.sightRef = enemyTemplate.sightRef;
+        this.scale = enemyTemplate.scale;
         this.movePattern = enemyTemplate.movePattern;
         this.spriteRef;
         this.active = true;
@@ -110,9 +115,13 @@ let currentWave = 0;
 let background;
 
 //config ship
-let shipMouseOffset = -30;
+let currentPosition = glMatrix.vec2.fromValues(300,300);
+let targetDir = glMatrix.vec2.create();
+let shipMouseOffset = -50;
 let gunCoolDown = 0.1;
 let gunCoolDownTimer = 0.0;
+
+let playerSpeed = 10.0;
 
 let score =0;
 
@@ -243,14 +252,13 @@ function create() {
 
     background = this.add.tileSprite(300, 450, 600, 900, 'blue');
     
-    newPiece = this.add.image(xMouse, yMouse, 'pso');
-    newPiece.setScale(0.4);
+    playerImageRef = this.add.image(xMouse, yMouse, 'pso');
+    playerImageRef.setScale(0.4);
     
-    gamePieces.push(newPiece);
+    //gamePieces.push(newPiece);
 
     this.input.on('pointerdown', (pointer) => {
-        isMouseDown = true;
-        
+        isMouseDown = true;        
     });
     
     this.input.on('pointerup', () => {
@@ -282,12 +290,25 @@ function update(time, delta) {
 
     background.tilePositionY -= 2;
 
-    gamePieces.forEach(piece => {
-        // Update the coordinates directly
-        piece.x = xMouse;
-        piece.y = yMouse + shipMouseOffset;
-    });
+    //player movement        
+    let targetPosition = glMatrix.vec2.fromValues(xMouse, yMouse);
+    glMatrix.vec2.subtract(targetDir, targetPosition, currentPosition);
 
+    let distance = glMatrix.vec2.length(targetDir);
+    if (distance < playerSpeed) { currentPosition[0] = xMouse; currentPosition[1] = yMouse; }
+    else {
+        glMatrix.vec2.normalize(targetDir, targetDir);        
+        let scaledDir = glMatrix.vec2.create(); // Empty vec2 for result
+        glMatrix.vec2.scale(scaledDir, targetDir, playerSpeed);        
+        glMatrix.vec2.add(currentPosition, currentPosition, scaledDir); 
+    }
+
+    playerImageRef.x = currentPosition[0];
+    playerImageRef.y = currentPosition[1] + shipMouseOffset;
+
+    //console.log("playerx ", playerImageRef.x, " y ", playerImageRef.y); 
+
+    //player bullets
     bullets.forEach((piece,index) => {
         // Update the coordinates directly
         
@@ -304,7 +325,7 @@ function update(time, delta) {
     if (isMouseDown && gunCoolDownTimer < 0)
         {
             gunCoolDownTimer = gunCoolDown;
-            newPiece = this.add.image(xMouse, yMouse-60, 'lb1');
+            newPiece = this.add.image(currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 'lb1');
                 newPiece.setScale(0.6);
                 bullets.push(newPiece);
         }
@@ -331,21 +352,12 @@ function update(time, delta) {
         
         //console.log("delta" + deltaTime);
         newEnemy.spriteRef = this.add.image(newEnemy.x, newEnemy.y, enemySprites[newEnemy.sightRef]);
-        newEnemy.spriteRef.setScale(0.4);
+        newEnemy.spriteRef.setScale(newEnemy.scale);
 
         enemies.push(newEnemy);
         //console.log("enemy made");
     }
-    //move enemies
-    /*enemies.forEach((piece,index) => {
-        // Update the coordinates directly
-        
-        piece.y += piece.moveSpeed;
-        piece.spriteRef.y = piece.y;
-        
-        //clean up at end
-        if (piece.y > 850) {piece.spriteRef.destroy(); enemies.splice(index, 1);}
-    });*/
+    
     
     enemies.forEach((piece,index) => {
         //console.log(piece.movePattern);
@@ -386,7 +398,7 @@ function update(time, delta) {
     //Updates
     explosionManager.Update(deltaTime);
 
-    this.topText.setText('score: ' + score + ' time: ' + gameTime.toFixed(1) );
+    this.topText.setText('score: ' + score + ' time: ' + gameTime.toFixed(1) + ' fps: ' + (1/deltaTime).toFixed(1));
 
 
     //progress
