@@ -52,18 +52,32 @@ let Wave0 = {
 
 }
 
-//Enemies
+//Bullets
+class Bullet{
+    constructor(posX, posY, dirX, dirY, type)
+    {
+        this.posX = posX;
+        this.posY = posY;
+        this.dirX = dirX;
+        this.dirY = dirY;
+        this.type = type;
+        this.spriteRef;
+        this.speed = 700.0; //comes from type in the future
+    }
+    Destroy()
+    {
+        this.spriteRef.destroy();
+        this.spriteRef = null;
+    }
+}
 
+//Enemies
 //movepattern: go x seconds y way then go z seconds a way etc.
 class EnemyMovementPattern {
     constructor(time0, dir0, time1, dir1, time2, dir2)
     {
         this.time = [time0, time1, time2];
         this.dir = [dir0, dir1, dir2];
-        //this.time1 = time1;
-        //this.dir1 = dir1;
-        //this.time2 = time2;
-        //this.dir2 = dir2;
     }
 }
 
@@ -72,19 +86,21 @@ mp1 = new EnemyMovementPattern(1.0,0.0, 0.5,0.5, 1.0,0.0);
 enemyMovementPatterns.push(mp1);
 
 class EnemyTemplate {
-    constructor(health, moveSpeed, sightRef, scale, movePattern)
+    constructor(health, moveSpeed, sightRef, scale, movePattern, shootPattern)
     {
         this.health = health;
         this.moveSpeed = moveSpeed;
         this.sightRef = sightRef;
         this.scale = scale;
         this.movePattern = movePattern;
+        this.shootPattern = shootPattern;
+        
     }
 };
 
-redEnemy = new EnemyTemplate(10.0,3,0,0.5,0);
-blueEnemy = new EnemyTemplate(20.0,5,1,0.4,0);
-yellowEnemy = new EnemyTemplate(30.0,4,2,0.4,0);
+redEnemy = new EnemyTemplate(10.0,200,0,0.5,0,1);
+blueEnemy = new EnemyTemplate(20.0,300,1,0.4,0,0);
+yellowEnemy = new EnemyTemplate(30.0,250,2,0.4,0,0);
 
 class Enemy {
     constructor(x, y, enemyTemplate)
@@ -96,6 +112,9 @@ class Enemy {
         this.sightRef = enemyTemplate.sightRef;
         this.scale = enemyTemplate.scale;
         this.movePattern = enemyTemplate.movePattern;
+        this.shootPattern = enemyTemplate.shootPattern;
+        this.shootCoolDown = 1.0;
+        this.shootTimer = 0.0;
         this.spriteRef;
         this.active = true;
         
@@ -108,7 +127,7 @@ class Enemy {
 let enemies = [];
 let enemyCoolDownTime = 0.3;
 let enemyCoolDownTimer = 2.0;
-let enemyMoveSpeed = 3;
+
 let gameTime = 0.0;
 let currentWave = 0;
 
@@ -121,7 +140,9 @@ let shipMouseOffset = -50;
 let gunCoolDown = 0.1;
 let gunCoolDownTimer = 0.0;
 
-let playerSpeed = 10.0;
+let playerSpeed = 600.0;
+
+let playerBulletSpeed = 1000.0;
 
 let score =0;
 
@@ -240,7 +261,7 @@ function preload() {
     this.load.image('star3', 'assets/star3.png');    
 
     // Dynamically load enemy sprites
-    const enemyKeys = ['eb1', 'eb2', 'eb3', 'eb4']; // Example keys for enemy sprites
+    const enemyKeys = ['eb1', 'eb2', 'eb3', 'eb4'];
     enemyKeys.forEach(key => {
         this.load.image(key, `assets/${key}.png`);
         enemySprites.push(key); // Dynamically add the key
@@ -253,9 +274,7 @@ function create() {
     background = this.add.tileSprite(300, 450, 600, 900, 'blue');
     
     playerImageRef = this.add.image(xMouse, yMouse, 'pso');
-    playerImageRef.setScale(0.4);
-    
-    //gamePieces.push(newPiece);
+    playerImageRef.setScale(0.4);    
 
     this.input.on('pointerdown', (pointer) => {
         isMouseDown = true;        
@@ -295,11 +314,11 @@ function update(time, delta) {
     glMatrix.vec2.subtract(targetDir, targetPosition, currentPosition);
 
     let distance = glMatrix.vec2.length(targetDir);
-    if (distance < playerSpeed) { currentPosition[0] = xMouse; currentPosition[1] = yMouse; }
+    if (distance < playerSpeed * deltaTime) { currentPosition[0] = xMouse; currentPosition[1] = yMouse; }
     else {
         glMatrix.vec2.normalize(targetDir, targetDir);        
         let scaledDir = glMatrix.vec2.create(); // Empty vec2 for result
-        glMatrix.vec2.scale(scaledDir, targetDir, playerSpeed);        
+        glMatrix.vec2.scale(scaledDir, targetDir, playerSpeed * deltaTime);        
         glMatrix.vec2.add(currentPosition, currentPosition, scaledDir); 
     }
 
@@ -312,24 +331,27 @@ function update(time, delta) {
     bullets.forEach((piece,index) => {
         // Update the coordinates directly
         
-        piece.y -=10;
-        if (piece.y <5)
+        piece.posY += piece.speed * piece.dirY * deltaTime; //warning
+        piece.spriteRef.y = piece.posY;
+        //piece.y -= playerBulletSpeed * deltaTime; //10; //TODO deltatime
+        if (piece.posY <5)
         {
             bullets.splice(index, 1);
-            piece.destroy();
+            piece.Destroy();
         }
     });
 
     //make bullets
     gunCoolDownTimer -= deltaTime;
     if (isMouseDown && gunCoolDownTimer < 0)
-        {
-            gunCoolDownTimer = gunCoolDown;
-            newPiece = this.add.image(currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 'lb1');
-                newPiece.setScale(0.6);
-                bullets.push(newPiece);
-        }
-
+    {
+        gunCoolDownTimer = gunCoolDown;
+        let newBullet = new Bullet(currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 0, -1, 0);
+        newBullet.spriteRef = this.add.image(currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 'lb1');
+        newBullet.spriteRef.setScale(0.6);
+        bullets.push(newBullet);
+    }
+    //console.log("bullets active:", bullets.length);
     //waves of enemies: x many of this type, y many of that type, spread out over z time?
     
     // amount, type
@@ -358,7 +380,7 @@ function update(time, delta) {
         //console.log("enemy made");
     }
     
-    
+    //update enemies
     enemies.forEach((piece,index) => {
         //console.log(piece.movePattern);
         
@@ -370,31 +392,51 @@ function update(time, delta) {
         //execute current movement
         let xMove = enemyMovementPatterns[piece.movePattern].dir[piece.currentMove];
         let yMove = 1- Math.abs(xMove);
-        piece.y += piece.moveSpeed * yMove ;
+        piece.y += piece.moveSpeed * deltaTime * yMove ;
         //console.log(piece.moveSpeed, yMove, deltaTime, piece.y);
-        piece.x += piece.moveSpeed * xMove;
+        piece.x += piece.moveSpeed * deltaTime * xMove;
         
         piece.spriteRef.x = piece.x;
         piece.spriteRef.y = piece.y;
         //clean up at end
         if (piece.y > 850) {piece.spriteRef.destroy(); enemies.splice(index, 1);}
+
+        //shoot (for now if shootpattern=1:shoot)
+        if (piece.shootPattern == 1)
+        {
+            //console.log("shootpaattern");
+            //let targetPosition = glMatrix.vec2.fromValues(xMouse, yMouse);
+            //glMatrix.vec2.subtract(targetDir, targetPosition, currentPosition);
+            piece.shootTimer -= deltaTime;
+            if (piece.shootTimer < 0)
+            {
+                //console.log("shoot enemy");
+                piece.shootTimer = piece.shootCoolDown;
+                let newBullet = new Bullet(piece.x, piece.y + 20, 0, 1, 0);
+                newBullet.spriteRef = this.add.image(newBullet.posX, newBullet.posY + 20, 'lb1');
+                newBullet.spriteRef.setScale(0.6);
+                bullets.push(newBullet);
+            }
+        }
+
     });
     
     //collision
+    
     bullets.forEach((bullet, bulletIndex) => {
         enemies.forEach((enemy, enemyIndex) =>{
-            let distance = Phaser.Math.Distance.Between(bullet.x, bullet.y, enemy.x, enemy.y);
+            let distance = Phaser.Math.Distance.Between(bullet.posX, bullet.posY, enemy.x, enemy.y);
             //console.log(distance);
             if (distance < 20) //hit
             {
                 explosionManager.CreateExplosion(enemy.x, enemy.y);
                 enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
-                bullet.destroy(); bullets.splice(bulletIndex, 1);
+                bullet.Destroy(); bullets.splice(bulletIndex, 1);
                 score+=1;
             }
         }) 
     });
-
+    
     //Updates
     explosionManager.Update(deltaTime);
 
