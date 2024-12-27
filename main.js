@@ -39,18 +39,39 @@ gameStatus = 1;
 let xMouse = 0.0;
 let yMouse = 0.0;
 
-
 //stuffs
-//let gamePieces = [];
 let bullets = [];
-
 let enemySprites = [];
 
-//Waves
-let Wave0 = {
-    waveTime: 10.0,
+//Wave //time, enemytype, amount
+class Wave {
+    constructor(intervalTime, eType0, eType1, eType2, eType3)
+    {
+        this.intervalTime = intervalTime;
+        this.eType = [eType0, eType1, eType2, eType3];
 
+        //this.eAmount = [eAmount0, eAmount1, eAmount2, eAmount3];
+        //this.timesBetween = [4];
+        //this.eType.forEach((piece,index) => 
+        //    { this.timesBetween[index] = time/this.eAmount[index]; });        
+    }
+    
+    //wave ends when? all dead? (or offscreen)
 }
+
+let waves = []; //array of waves, first this one than that one
+
+//let wave1 = new Wave(10, 1, 20, 2, 10, 0, 0, 0, 0);
+let wave0 = new Wave(0.3, 0, 20, 10, 0);
+let wave1 = new Wave(0.2, 10, 30, 20, 0);
+
+waves.push(wave0);
+waves.push(wave1);
+
+let currentWave = 0;
+let newWave = true;
+
+let enemySpawnsToGo = [4];
 
 //Bullets
 class Bullet{
@@ -64,7 +85,7 @@ class Bullet{
         this.spriteRef;
         this.speed = 700.0; //comes from type in the future
     }
-    Destroy()
+    destroy()
     {
         this.spriteRef.destroy();
         this.spriteRef = null;
@@ -83,7 +104,9 @@ class EnemyMovementPattern {
 
 let enemyMovementPatterns = [];
 mp1 = new EnemyMovementPattern(1.0,0.0, 0.5,0.5, 1.0,0.0);
+mp2 = new EnemyMovementPattern(1.2,0.0, 0.7,-0.3, 1.0,0.0);
 enemyMovementPatterns.push(mp1);
+enemyMovementPatterns.push(mp2);
 
 class EnemyTemplate {
     constructor(health, moveSpeed, sightRef, scale, movePattern, shootPattern)
@@ -99,8 +122,13 @@ class EnemyTemplate {
 };
 
 redEnemy = new EnemyTemplate(10.0,200,0,0.5,0,1);
-blueEnemy = new EnemyTemplate(20.0,300,1,0.4,0,0);
+blueEnemy = new EnemyTemplate(20.0,300,1,0.4,1,0);
 yellowEnemy = new EnemyTemplate(30.0,250,2,0.4,0,0);
+
+let enemytemplates = [];
+enemytemplates.push(redEnemy);
+enemytemplates.push(blueEnemy);
+enemytemplates.push(yellowEnemy);
 
 class Enemy {
     constructor(x, y, enemyTemplate)
@@ -122,14 +150,13 @@ class Enemy {
         this.moveTimer = 999.0;
     }
     //update(deltaTime): movement and shoot
-    //Destroy
+    //destroy
 };
 let enemies = [];
 let enemyCoolDownTime = 0.3;
 let enemyCoolDownTimer = 2.0;
 
 let gameTime = 0.0;
-let currentWave = 0;
 
 let background;
 
@@ -142,7 +169,7 @@ let gunCoolDownTimer = 0.0;
 
 let playerSpeed = 600.0;
 
-let playerBulletSpeed = 1000.0;
+
 
 let score =0;
 
@@ -171,7 +198,7 @@ class Particle{
         this.growth = 1.0;
         this.imageRef = null;        
     }
-    Destroy()
+    destroy()
     {
         this.imageRef.destroy();
         this.imageRef = null;
@@ -244,7 +271,7 @@ class ExplosionMgr {
 
             if (particle.lifeTime < 0)
             {
-                particle.Destroy();
+                particle.destroy();
                 this.thepool.splice(particleIndex,1);
             }
         });
@@ -337,7 +364,7 @@ function update(time, delta) {
         if (piece.posY <5)
         {
             bullets.splice(index, 1);
-            piece.Destroy();
+            piece.destroy();
         }
     });
 
@@ -358,26 +385,56 @@ function update(time, delta) {
 
     
     // create enemies
+    if (newWave)
+    {
+        newWave = false;
+        for(let i =0; i < 4; i++)
+        {
+            enemySpawnsToGo[i] = waves[currentWave].eType[i];
+        }
+        
+    }
+
     enemyCoolDownTimer -= deltaTime;
     if (enemyCoolDownTimer < 0)
     {
-        enemyCoolDownTimer = enemyCoolDownTime;
+        enemyCoolDownTimer = waves[currentWave].intervalTime;
         let randomNumber = Math.random();
-        let newX = randomNumber*500 + 50;
-        //newEnemy = new Enemy(newX,10, 100.0, enemyMoveSpeed, 0);
-        //newEnemy = new Enemy(newX,10, RedEnemy.health, enemyMoveSpeed, RedEnemy.spriteRef); //careful
+        let newX = randomNumber*500 + 50;        
         
-        randomNumber = Math.random();
-        if (randomNumber < 0.3) { newEnemy = new Enemy(newX,10, redEnemy); }
-        else if (randomNumber > 0.3 && randomNumber < 0.6) { newEnemy = new Enemy(newX,10, blueEnemy); }
-        else { newEnemy = new Enemy(newX,10, yellowEnemy);}
+        let indexSelected = Math.round(4 * Math.random());
+
+        if (enemySpawnsToGo[indexSelected] > 0)
+        {
+            enemySpawnsToGo[indexSelected] -= 1;
+            console.log(enemySpawnsToGo[indexSelected]);
+            newEnemy = new Enemy(newX,10, enemytemplates[indexSelected]);
+
+            newEnemy.spriteRef = this.add.image(newEnemy.x, newEnemy.y, enemySprites[newEnemy.sightRef]);
+            newEnemy.spriteRef.setScale(newEnemy.scale);
+
+            enemies.push(newEnemy);
+        }
+
+        //randomNumber = Math.random();
+        //if (randomNumber < 0.3) { newEnemy = new Enemy(newX,10, redEnemy); }
+        //else if (randomNumber > 0.3 && randomNumber < 0.6) { newEnemy = new Enemy(newX,10, blueEnemy); }
+        //else { newEnemy = new Enemy(newX,10, yellowEnemy);}
         
         //console.log("delta" + deltaTime);
-        newEnemy.spriteRef = this.add.image(newEnemy.x, newEnemy.y, enemySprites[newEnemy.sightRef]);
-        newEnemy.spriteRef.setScale(newEnemy.scale);
+        //newEnemy.spriteRef = this.add.image(newEnemy.x, newEnemy.y, enemySprites[newEnemy.sightRef]);
+        //newEnemy.spriteRef.setScale(newEnemy.scale);
 
-        enemies.push(newEnemy);
+        //enemies.push(newEnemy);
         //console.log("enemy made");
+    }
+
+    //advance wave
+    if (enemySpawnsToGo[0]+enemySpawnsToGo[1]+enemySpawnsToGo[2]+enemySpawnsToGo[3] ==0)
+    {
+        currentWave += 1; 
+        console.log( "next wave");
+        newWave = true;
     }
     
     //update enemies
@@ -431,7 +488,7 @@ function update(time, delta) {
             {
                 explosionManager.CreateExplosion(enemy.x, enemy.y);
                 enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
-                bullet.Destroy(); bullets.splice(bulletIndex, 1);
+                bullet.destroy(); bullets.splice(bulletIndex, 1);
                 score+=1;
             }
         }) 
@@ -442,18 +499,7 @@ function update(time, delta) {
 
     this.topText.setText('score: ' + score + ' time: ' + gameTime.toFixed(1) + ' fps: ' + (1/deltaTime).toFixed(1));
 
-
-    //progress
-    if (gameTime > 10)
-    {
-        enemyCoolDownTime = 0.2;
-        enemyMoveSpeed = 4;
-    } else if (gameTime > 20)
-    {
-        enemyCoolDownTime = 0.1;
-        enemyMoveSpeed = 6;
-    }
-
+    
 
     //console.log('this many bullets: ' + bullets.length)
     //console.log('this many enemies: ' + enemies.length)
