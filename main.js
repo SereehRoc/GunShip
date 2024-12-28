@@ -101,7 +101,8 @@ class Bullet{
         this.dirY = dirY;
         this.type = type;
         this.spriteRef;
-        this.speed = 700.0; //comes from type in the future
+        this.speed = bulletTemplates[type].speed; //comes from type in the future
+        this.damage = bulletTemplates[type].damage;
 
         this.spriteRef = this.scene.add.image(posX, posY + shipMouseOffset - 15, bulletSprites[bulletTemplates[type].sightRef]);
         
@@ -133,7 +134,7 @@ enemyMovementPatterns.push(mp1);
 enemyMovementPatterns.push(mp2);
 
 class EnemyTemplate {
-    constructor(health, moveSpeed, sightRef, scale, movePattern, shootPattern)
+    constructor(health, moveSpeed, sightRef, scale, movePattern, shootPattern, bulletType)
     {
         this.health = health;
         this.moveSpeed = moveSpeed;
@@ -141,14 +142,14 @@ class EnemyTemplate {
         this.scale = scale;
         this.movePattern = movePattern;
         this.shootPattern = shootPattern;
-        
+        this.bulletType = bulletType;        
     }
 };
 
-purpleEnemy = new EnemyTemplate(    30.0,   200,    0,  0.5,    1,  1);
-redEnemy = new EnemyTemplate(       20.0,   300,    1,  0.4,    1,  0);
-greenEnemy = new EnemyTemplate(     30.0,   250,    2,  0.4,    0,  0);
-blueEnemy = new EnemyTemplate(      40.0,   150,    3,  0.6,    2,  1);
+purpleEnemy = new EnemyTemplate(    30.0,   200,    0,  0.5,    1,  1,  1);
+redEnemy = new EnemyTemplate(       10.0,   300,    1,  0.4,    1,  0,  0);
+greenEnemy = new EnemyTemplate(     20.0,   250,    2,  0.4,    0,  0,  0);
+blueEnemy = new EnemyTemplate(      70.0,   150,    3,  0.6,    2,  1,  1);
 
 let enemytemplates = [];
 enemytemplates.push(purpleEnemy);
@@ -168,6 +169,7 @@ class Enemy {
         this.scale = enemyTemplate.scale;
         this.movePattern = enemyTemplate.movePattern;
         this.shootPattern = enemyTemplate.shootPattern;
+        this.bulletType = enemyTemplate.bulletType;
         this.shootCoolDown = 1.0;
         this.shootTimer = 0.0;
         this.spriteRef;
@@ -235,10 +237,20 @@ class ExplosionMgr {
 
     thepool =[];
 
-    CreateExplosion(x, y){
-        for (let i=0; i<30; i++)
+    CreateExplosion(x, y, particleAmount){
+        for (let i=0; i<particleAmount; i++)
         {            
             let newParticle = new Particle(x,y, GetRandomminusplus(), GetRandomminusplus(), 100*GetRandomminusplus(), (GetRandomminusplus()/2)+0.5);
+            newParticle.imageRef = this.scene.add.image(x, y, 'star3')
+            
+            this.thepool.push(newParticle);
+        }
+    }
+
+    CreateDownSpark(x, y, particleAmount){
+        for (let i=0; i<particleAmount; i++)
+        {            
+            let newParticle = new Particle(x,y, GetRandomminusplus(), 0.5+ Math.random(), 100+30*Math.random(), (GetRandomminusplus()/2)+0.5);
             newParticle.imageRef = this.scene.add.image(x, y, 'star3')
             
             this.thepool.push(newParticle);
@@ -426,19 +438,17 @@ function update(time, delta) {
 
         while (indexSelected ==-1)
         {
-            let randomChoice = Math.round(4 * Math.random());
+            let randomChoice = Math.round(3 * Math.random());
+            //console.log("rand rounded: ", randomChoice);
             if (enemySpawnsToGo[randomChoice] != 0)
             { indexSelected = randomChoice; }
         }
 
-        if (enemySpawnsToGo[indexSelected] > 0)
-        {
-            enemySpawnsToGo[indexSelected] -= 1;
-            console.log(enemySpawnsToGo[indexSelected]);
-            newEnemy = new Enemy(this, newX,10, enemytemplates[indexSelected]);
-
-            enemies.push(newEnemy);
-        }
+        enemySpawnsToGo[indexSelected] -= 1;
+        //console.log(enemySpawnsToGo[indexSelected]);
+        //console.log("index selected", indexSelected);
+        newEnemy = new Enemy(this, newX,10, enemytemplates[indexSelected]);
+        enemies.push(newEnemy);        
     }
 
     //advance wave
@@ -479,7 +489,7 @@ function update(time, delta) {
             {
                 //console.log("shoot enemy");
                 piece.shootTimer = piece.shootCoolDown;
-                let newBullet = new Bullet(this, piece.x, piece.y + 20, 0, 1, 0);
+                let newBullet = new Bullet(this, piece.x, piece.y + 20, 0, 1, piece.bulletType);
                 
                 bullets.push(newBullet);
             }
@@ -494,8 +504,16 @@ function update(time, delta) {
             //console.log(distance);
             if (distance < 20) //hit
             {
-                explosionManager.CreateExplosion(enemy.x, enemy.y);
-                enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
+                enemy.health -= bullet.damage;
+                if (enemy.health <= 0)
+                {
+                    explosionManager.CreateExplosion(enemy.x, enemy.y, 25);
+                    enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
+                }
+                else
+                {
+                    explosionManager.CreateDownSpark(enemy.x, enemy.y +20, 5);
+                }
                 bullet.destroy(); bullets.splice(bulletIndex, 1);
                 score+=1;
             }
