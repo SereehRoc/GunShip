@@ -40,9 +40,53 @@ let xMouse = 0.0;
 let yMouse = 0.0;
 
 //stuffs
-let bullets = [];
+
 let enemySprites = [];
 let bulletSprites = [];
+
+class SpriteDispenser {
+    constructor(scene, key)
+    {
+        this.scene = scene;
+        this.sprites = [];
+        for(let i=0; i < 100; i++)
+        {
+            let newSprite = this.scene.add.image(100,100,key);
+            newSprite.setScale(0.6);
+            newSprite.setVisible(false);
+            newSprite.setActive(false);
+            this.sprites.push(newSprite);
+        }
+    }
+    GetAvailableSprite()
+    {
+        for(let i=0; i < this.sprites.length; i++)
+        {
+            if (this.sprites[i].active == false)
+            {
+                this.sprites[i].setActive(true);
+                this.sprites[i].setVisible(true);
+                this.sprites[i].x = 100;
+                this.sprites[i].y = 100;
+                //console.log("despensed index: ", i, " locx ", this.sprites[i].x);
+                return i;                
+            }
+        }        
+        return -1;
+    }
+    FreeSprite(index)
+    {
+        if (index >= 0 && index < this.sprites.length)
+        {
+            this.sprites[index].setActive(false);
+            this.sprites[index].setVisible(false);
+        }
+    }
+}
+
+let blueLaserDispenser;
+let redLaserDispenser;
+
 
 //Wave //time, enemytype, amount
 class Wave {
@@ -90,9 +134,45 @@ let templateRedBall = new BulletTemplate(   10,  400,    1);
 bulletTemplates.push(templateLaser);
 bulletTemplates.push(templateRedBall);
 
+//Bulletmanager. support different bullets based on templates. request a bullet with a template. bulletmanager will update
+class BulletManager{
+    constructor(scene, spriteDispenser)
+    {
+        this.scene = scene;
+        this.spriteDispenser = spriteDispenser;
+        this.bullets = [];
+    }
+    RequestBullet(x,y,dirX,dirY,type)
+    {
+        let newBullet = new Bullet(this.scene, x, y, dirX, dirY, type, this.spriteDispenser);
+        
+        this.bullets.push(newBullet);
+    }
+    Update(deltaTime)
+    {
+        this.bullets.forEach((piece,index) => {
+            piece.posY += piece.speed * piece.dirY * deltaTime;
+            //console.log("BM update spriteref: ", piece.spriteRef);
+            this.spriteDispenser.sprites[piece.spriteRef].setPosition(piece.posX, piece.posY);
+        
+            if (piece.posY <5 || piece.posY > 855)
+            {
+                this.DeactivateBullet(index);
+                //piece.destroy();
+                //bullets.splice(index, 1);
+            }
+        })
+    }
+    DeactivateBullet(index)
+    {
+        this.bullets[index].destroy();
+        this.bullets.splice(index, 1);
+    }
+}
+
 //Bullets
 class Bullet{
-    constructor(scene, posX, posY, dirX, dirY, type)
+    constructor(scene, posX, posY, dirX, dirY, type, spriteDispenser)
     {
         this.scene = scene;
         this.posX = posX;
@@ -101,17 +181,22 @@ class Bullet{
         this.dirY = dirY;
         this.type = type;
         this.spriteRef;
-        this.speed = bulletTemplates[type].speed; //comes from type in the future
+        this.speed = bulletTemplates[type].speed;
         this.damage = bulletTemplates[type].damage;
 
-        this.spriteRef = this.scene.add.image(posX, posY + shipMouseOffset - 15, bulletSprites[bulletTemplates[type].sightRef]);
+        this.spriteDispenser = spriteDispenser;
+
+        //this.spriteRef = this.scene.add.image(posX, posY + shipMouseOffset - 15, bulletSprites[bulletTemplates[type].sightRef]);
+
+        this.spriteRef = this.spriteDispenser.GetAvailableSprite(); //gets an index
+        this.spriteDispenser.sprites[this.spriteRef].setPosition(this.posX, this.posY);
         
-        this.spriteRef.setScale(0.6);
+        //console.log("new bullet spriteref: ", this.spriteRef);
     }
+
     destroy()
     {
-        this.spriteRef.destroy();
-        this.spriteRef = null;
+        this.spriteDispenser.FreeSprite(this.spriteRef); //gets an index       
     }
 }
 
@@ -318,6 +403,8 @@ function preload() {
         bulletSprites.push(key); // Dynamically add the key
     });
     
+   
+
 
     this.load.image('star3', 'assets/star3.png');    
 
@@ -331,12 +418,14 @@ function preload() {
 
 function create() {
 
-
+    
     background = this.add.tileSprite(300, 450, 600, 900, 'blue');
+    background.setDepth(0);
     
     playerImageRef = this.add.image(xMouse, yMouse, 'pso');
-    playerImageRef.setScale(0.4);    
-
+    playerImageRef.setScale(0.4);
+    playerImageRef.setDepth(2);     
+    
     this.input.on('pointerdown', (pointer) => {
         isMouseDown = true;        
     });
@@ -344,9 +433,19 @@ function create() {
     this.input.on('pointerup', () => {
         isMouseDown = false;
     });
-
+    
     explosionManager = new ExplosionMgr(this, 100);
+    
+    blueLaserDispenser = new SpriteDispenser(this, "lb1");
+    blueLaserDispenser.sprites.forEach(sprite => sprite.setDepth(1));
+    redLaserDispenser = new SpriteDispenser(this, "lr1");
+    redLaserDispenser.sprites.forEach(sprite => sprite.setDepth(1));
 
+    let newSprite = this.add.image(100,100,'lb1');
+
+    bulletManager = new BulletManager(this, blueLaserDispenser);
+    redBulletManager = new BulletManager(this, redLaserDispenser);
+    
      //mouse coords
     
     this.topText = this.add.text(10, 10, 'X: 0, Y: 0', {
@@ -370,6 +469,9 @@ function update(time, delta) {
 
     background.tilePositionY -= 2;
 
+    bulletManager.Update(deltaTime);
+    redBulletManager.Update(deltaTime);
+
     //player movement        
     let targetPosition = glMatrix.vec2.fromValues(xMouse, yMouse);
     glMatrix.vec2.subtract(targetDir, targetPosition, currentPosition);
@@ -388,35 +490,16 @@ function update(time, delta) {
 
     //console.log("playerx ", playerImageRef.x, " y ", playerImageRef.y); 
 
-    //player bullets
-    bullets.forEach((piece,index) => {
-        // Update the coordinates directly
-        
-        piece.posY += piece.speed * piece.dirY * deltaTime; //warning
-        piece.spriteRef.y = piece.posY;
-        
-        if (piece.posY <5)
-        {
-            bullets.splice(index, 1);
-            piece.destroy();
-        }
-    });
-
+    
     //make bullets
     gunCoolDownTimer -= deltaTime;
     if (isMouseDown && gunCoolDownTimer < 0)
     {
         gunCoolDownTimer = gunCoolDown;
-        let newBullet = new Bullet(this, currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 0, -1, 0);
         
-        bullets.push(newBullet);
+        bulletManager.RequestBullet(currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 0, -1, 0);
     }
-    //console.log("bullets active:", bullets.length);
-    //waves of enemies: x many of this type, y many of that type, spread out over z time?
-    
-    // amount, type
 
-    
     // create enemies
     if (newWave)
     {
@@ -489,16 +572,18 @@ function update(time, delta) {
             {
                 //console.log("shoot enemy");
                 piece.shootTimer = piece.shootCoolDown;
-                let newBullet = new Bullet(this, piece.x, piece.y + 20, 0, 1, piece.bulletType);
+                redBulletManager.RequestBullet(piece.x, piece.y + 20, 0, 1, piece.bulletType);
+                //let newBullet = new Bullet(this, piece.x, piece.y + 20, 0, 1, piece.bulletType);
                 
-                bullets.push(newBullet);
+                //bullets.push(newBullet);
             }
         }
 
     });
     
-    //collision    
-    bullets.forEach((bullet, bulletIndex) => {
+    //collision
+    
+    bulletManager.bullets.forEach((bullet, bulletIndex) => {
         enemies.forEach((enemy, enemyIndex) =>{
             let distance = Phaser.Math.Distance.Between(bullet.posX, bullet.posY, enemy.x, enemy.y);
             //console.log(distance);
@@ -514,7 +599,30 @@ function update(time, delta) {
                 {
                     explosionManager.CreateDownSpark(enemy.x, enemy.y +20, 5);
                 }
-                bullet.destroy(); bullets.splice(bulletIndex, 1);
+                bulletManager.DeactivateBullet(bulletIndex);
+                //bullet.destroy(); bullets.splice(bulletIndex, 1);
+                score+=1;
+            }
+        }) 
+    });
+    redBulletManager.bullets.forEach((bullet, bulletIndex) => {
+        enemies.forEach((enemy, enemyIndex) =>{
+            let distance = Phaser.Math.Distance.Between(bullet.posX, bullet.posY, enemy.x, enemy.y);
+            //console.log(distance);
+            if (distance < 20) //hit
+            {
+                enemy.health -= bullet.damage;
+                if (enemy.health <= 0)
+                {
+                    explosionManager.CreateExplosion(enemy.x, enemy.y, 25);
+                    enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
+                }
+                else
+                {
+                    explosionManager.CreateDownSpark(enemy.x, enemy.y +20, 5);
+                }
+                redBulletManager.DeactivateBullet(bulletIndex);
+                //bullet.destroy(); bullets.splice(bulletIndex, 1);
                 score+=1;
             }
         }) 
@@ -527,7 +635,8 @@ function update(time, delta) {
 
     
 
-    //console.log('this many bullets: ' + bullets.length)
+    console.log('this many blue bullets: ' + bulletManager.bullets.length);
+    console.log('this many red bullets: ' + redBulletManager.bullets.length);
     //console.log('this many enemies: ' + enemies.length)
 
 
