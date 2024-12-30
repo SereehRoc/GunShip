@@ -107,12 +107,16 @@ class Wave {
 let waves = []; //array of waves, first this one than that one
 
 let wave0 = new Wave(0.3,    0,      20,     10,     0);
-let wave1 = new Wave(0.25,   10,     30,     20,     0);
-let wave2 = new Wave(0.22,   10,     10,     20,     10);
+let wave1 = new Wave(0.25,   5,     30,     20,     0);
+let wave2 = new Wave(0.24,   10,     30,     30,     0);
+let wave3 = new Wave(0.22,   10,     10,     20,     10);
+let wave4 = new Wave(0.22,   15,     30,     20,     20);
 
 waves.push(wave0);
 waves.push(wave1);
 waves.push(wave2);
+waves.push(wave3);
+waves.push(wave4);
 
 let currentWave = 0;
 let newWave = true;
@@ -147,6 +151,7 @@ class BulletManager{
         let newBullet = new Bullet(this.scene, x, y, dirX, dirY, type, this.spriteDispenser);
         
         this.bullets.push(newBullet);
+        this.scene.sound.play('shoot1', {volume: 0.1});
     }
     Update(deltaTime)
     {
@@ -164,9 +169,14 @@ class BulletManager{
         })
     }
     DeactivateBullet(index)
-    {
-        this.bullets[index].destroy();
-        this.bullets.splice(index, 1);
+    {        
+        if (this.bullets[index] != undefined)
+        {
+            this.bullets[index].destroy();
+            this.bullets.splice(index, 1);
+
+        }
+        
     }
 }
 
@@ -402,9 +412,6 @@ function preload() {
         this.load.image(key, `assets/${key}.png`);
         bulletSprites.push(key); // Dynamically add the key
     });
-    
-   
-
 
     this.load.image('star3', 'assets/star3.png');    
 
@@ -414,6 +421,12 @@ function preload() {
         this.load.image(key, `assets/${key}.png`);
         enemySprites.push(key); // Dynamically add the key
     });
+
+    //audio
+    this.load.audio('shoot1', 'assets/shoot1.ogg');
+    this.load.audio('hurt', 'assets/expl.mp3');
+    this.load.audio('expls', 'assets/expls.mp3');
+    this.load.audio('80chip', 'assets/80chip.mp3');
 }
 
 function create() {
@@ -441,7 +454,7 @@ function create() {
     redLaserDispenser = new SpriteDispenser(this, "lr1");
     redLaserDispenser.sprites.forEach(sprite => sprite.setDepth(1));
 
-    let newSprite = this.add.image(100,100,'lb1');
+    //let newSprite = this.add.image(100,100,'lb1');
 
     bulletManager = new BulletManager(this, blueLaserDispenser);
     redBulletManager = new BulletManager(this, redLaserDispenser);
@@ -459,6 +472,8 @@ function create() {
         xMouse = pointer.x; yMouse = pointer.y;
     }); 
    
+    const bgMusic = this.sound.add('80chip', { loop: true, volume: 0.5 });
+    bgMusic.play();
 }
 
 function update(time, delta) {    
@@ -498,6 +513,8 @@ function update(time, delta) {
         gunCoolDownTimer = gunCoolDown;
         
         bulletManager.RequestBullet(currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 0, -1, 0);
+
+        
     }
 
     // create enemies
@@ -594,6 +611,7 @@ function update(time, delta) {
                 {
                     explosionManager.CreateExplosion(enemy.x, enemy.y, 25);
                     enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
+                    this.sound.play('hurt', {volume: 0.2});
                 }
                 else
                 {
@@ -616,6 +634,7 @@ function update(time, delta) {
                 {
                     explosionManager.CreateExplosion(enemy.x, enemy.y, 25);
                     enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
+                    this.sound.play('hurt', {volume: 0.2});
                 }
                 else
                 {
@@ -627,6 +646,44 @@ function update(time, delta) {
             }
         }) 
     });
+
+    //player hit
+    redBulletManager.bullets.forEach((bullet, bulletIndex) => {
+        
+        let distance = Phaser.Math.Distance.Between(bullet.posX, bullet.posY, playerImageRef.x, playerImageRef.y);
+        //console.log(distance);
+        if (distance < 20) //hit
+        {
+            //enemy.health -= bullet.damage;
+            //if (enemy.health <= 0)
+            //{
+                explosionManager.CreateExplosion(playerImageRef.x, playerImageRef.y, 25);
+                //.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
+                this.sound.play('expls', {volume: 1.2});
+            //}
+            //else
+            //{
+                //explosionManager.CreateDownSpark(enemy.x, enemy.y +20, 5);
+            //}
+            redBulletManager.DeactivateBullet(bulletIndex);
+            //bullet.destroy(); bullets.splice(bulletIndex, 1);
+            score-=10; if (score <0) { score=0;}
+        }
+        
+    });
+    enemies.forEach((enemy, enemyIndex) =>{
+        let distance = Phaser.Math.Distance.Between(enemy.x, enemy.y, playerImageRef.x, playerImageRef.y);
+        if (distance < 20) //hit
+        {
+            explosionManager.CreateExplosion(playerImageRef.x, playerImageRef.y, 25);
+            
+            this.sound.play('expls', {volume: 1.2});            
+            
+            enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
+            score-=10; if (score <0) { score=0;}
+        }
+    });
+
     
     //Updates
     explosionManager.Update(deltaTime);
