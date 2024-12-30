@@ -87,6 +87,51 @@ class SpriteDispenser {
 let blueLaserDispenser;
 let redLaserDispenser;
 
+class PickUp{
+    constructor(x,y,spriteRef, type)
+    {
+        this.x = x;
+        this.y = y;
+        this.spriteRef = spriteRef;
+        this.type = type;
+    }
+}
+
+class PickupManager{
+    constructor(scene)
+    {
+        this.scene = scene;
+        this.pickups = [];        
+    }
+    CreatePickup(type)
+    {
+        let randomNumber = Math.random();
+        let newX = randomNumber*500 + 50;      
+
+        let newPickup = new PickUp(newX, 5, this.scene.add.image(newX, 5, 'powerup'), type);
+        
+        newPickup.spriteRef.setScale(0.6);
+
+        this.pickups.push(newPickup);
+    }
+    Update(deltaTime)
+    {
+        this.pickups.forEach((piece,index) => {
+            piece.y += 300*deltaTime;
+            piece.spriteRef.y = piece.y;
+
+            if (piece.y > 850) {this.DestroyPickUp(index);}
+        })
+    }
+    DestroyPickUp(index)
+    {        
+        if (this.pickups[index] != undefined)
+        {
+            this.pickups[index].spriteRef.destroy();
+            this.pickups.splice(index, 1);
+        }        
+    }
+}
 
 //Wave //time, enemytype, amount
 class Wave {
@@ -406,6 +451,7 @@ function preload() {
 
     this.load.image('blue', 'assets/blue.png');
     this.load.image('pso', 'assets/pso.png');
+    this.load.image('powerup', 'assets/powerup.png');
     
     const bulletKeys = ['lb1', 'lr1'];
     bulletKeys.forEach(key => {
@@ -426,6 +472,7 @@ function preload() {
     this.load.audio('shoot1', 'assets/shoot1.ogg');
     this.load.audio('hurt', 'assets/expl.mp3');
     this.load.audio('expls', 'assets/expls.mp3');
+    this.load.audio('powerup', 'assets/powerup.wav');
     this.load.audio('80chip', 'assets/80chip.mp3');
 }
 
@@ -459,6 +506,8 @@ function create() {
     bulletManager = new BulletManager(this, blueLaserDispenser);
     redBulletManager = new BulletManager(this, redLaserDispenser);
     
+    pickupManager = new PickupManager(this);
+
      //mouse coords
     
     this.topText = this.add.text(10, 10, 'X: 0, Y: 0', {
@@ -487,6 +536,8 @@ function update(time, delta) {
     bulletManager.Update(deltaTime);
     redBulletManager.Update(deltaTime);
 
+    pickupManager.Update(deltaTime);
+
     //player movement        
     let targetPosition = glMatrix.vec2.fromValues(xMouse, yMouse);
     glMatrix.vec2.subtract(targetDir, targetPosition, currentPosition);
@@ -510,11 +561,8 @@ function update(time, delta) {
     gunCoolDownTimer -= deltaTime;
     if (isMouseDown && gunCoolDownTimer < 0)
     {
-        gunCoolDownTimer = gunCoolDown;
-        
-        bulletManager.RequestBullet(currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 0, -1, 0);
-
-        
+        gunCoolDownTimer = gunCoolDown;        
+        bulletManager.RequestBullet(currentPosition[0], currentPosition[1] + shipMouseOffset - 15, 0, -1, 0);        
     }
 
     // create enemies
@@ -530,8 +578,11 @@ function update(time, delta) {
     enemyCoolDownTimer -= deltaTime;
     if (enemyCoolDownTimer < 0)
     {
-        enemyCoolDownTimer = waves[currentWave].intervalTime;
         let randomNumber = Math.random();
+        if (randomNumber>0.95) {pickupManager.CreatePickup(0);}
+
+        enemyCoolDownTimer = waves[currentWave].intervalTime;
+        randomNumber = Math.random();
         let newX = randomNumber*500 + 50;        
         
         let indexSelected = -1;
@@ -681,6 +732,21 @@ function update(time, delta) {
             
             enemy.spriteRef.destroy(); enemies.splice(enemyIndex, 1); //double code booo
             score-=10; if (score <0) { score=0;}
+        }
+    });
+
+    //pickups
+    pickupManager.pickups.forEach((pickup, index) =>{
+        let distance = Phaser.Math.Distance.Between(pickup.x, pickup.y, playerImageRef.x, playerImageRef.y);
+        if (distance < 20) //hit
+        {
+            //explosionManager.CreateExplosion(playerImageRef.x, playerImageRef.y, 25);
+            
+            this.sound.play('powerup', {volume: 0.6});            
+            
+            pickup.spriteRef.destroy(); pickupManager.pickups.splice(index, 1); //double code booo
+            
+            gunCoolDown *= 0.9;
         }
     });
 
